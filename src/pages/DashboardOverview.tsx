@@ -23,7 +23,7 @@ import { FinanzdatenBwaJahresabschlussDialog } from '@/components/dialogs/Finanz
 import { MitarbeiterlisteDialog } from '@/components/dialogs/MitarbeiterlisteDialog';
 import { KennzahlenauswertungDialog } from '@/components/dialogs/KennzahlenauswertungDialog';
 import { AI_PHOTO_SCAN, AI_PHOTO_LOCATION } from '@/config/ai-features';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, PieChart, Pie, Legend } from 'recharts';
 
 const APPGROUP_ID = '69d6407bafe1913965d589b8';
 const REPAIR_ENDPOINT = '/claude/build/repair';
@@ -110,6 +110,22 @@ export default function DashboardOverview() {
         EBIT: f.fields.ebit ?? 0,
         Personalkosten: f.fields.personalkosten ?? 0,
       }));
+  }, [unternehmenFinanzdaten]);
+
+  const kostenPieData = useMemo(() => {
+    const latest = unternehmenFinanzdaten
+      .filter(f => f.fields.umsatzerloese != null && f.fields.ebit != null)
+      .sort((a, b) => (b.fields.berichtszeitraum ?? '').localeCompare(a.fields.berichtszeitraum ?? ''))[0];
+    if (!latest) return [];
+    const umsatz = latest.fields.umsatzerloese ?? 0;
+    const ebit = latest.fields.ebit ?? 0;
+    const personalkosten = latest.fields.personalkosten ?? 0;
+    const gesamtkosten = umsatz - ebit;
+    const sonstigeKosten = Math.max(0, gesamtkosten - personalkosten);
+    const data = [];
+    if (personalkosten > 0) data.push({ name: 'Personalkosten', value: personalkosten });
+    if (sonstigeKosten > 0) data.push({ name: 'Sonstige Kosten', value: sonstigeKosten });
+    return data;
   }, [unternehmenFinanzdaten]);
 
   if (loading) return <DashboardSkeleton />;
@@ -334,6 +350,40 @@ export default function DashboardOverview() {
                       </BarChart>
                     </ResponsiveContainer>
                   </div>
+                </div>
+              )}
+
+              {/* Kostenaufteilung Tortendiagramm */}
+              {kostenPieData.length > 0 && (
+                <div className="rounded-2xl border border-border bg-card p-5 overflow-hidden">
+                  <p className="font-semibold text-foreground mb-4">Kostenaufteilung</p>
+                  <ResponsiveContainer width="100%" height={220}>
+                    <PieChart>
+                      <Pie
+                        data={kostenPieData}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={55}
+                        outerRadius={85}
+                        paddingAngle={3}
+                        dataKey="value"
+                        label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                        labelLine={false}
+                      >
+                        {kostenPieData.map((_, index) => (
+                          <Cell
+                            key={`cell-${index}`}
+                            fill={index === 0 ? 'var(--primary)' : 'var(--chart-3, #f59e0b)'}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip
+                        contentStyle={{ backgroundColor: 'var(--background)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 12 }}
+                        formatter={(value: number) => [formatCurrency(value)]}
+                      />
+                      <Legend iconType="circle" iconSize={10} wrapperStyle={{ fontSize: 12 }} />
+                    </PieChart>
+                  </ResponsiveContainer>
                 </div>
               )}
 
